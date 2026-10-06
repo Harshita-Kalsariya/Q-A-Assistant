@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Q&A Assistant</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>Document Q&amp;A Assistant</h1>
+
+    <div class="card">
+
+        <h2>1. Upload Document</h2>
+
+        <p class="help-text">
+            Supported files: PDF, DOCX, TXT, JPG, JPEG, PNG
+        </p>
+
+        <input
+            type="file"
+            id="fileInput"
+            accept=".pdf,.docx,.txt,.jpg,.jpeg,.png"
+        >
+
+        <button id="uploadButton" onclick="uploadDocument()">
+            Upload &amp; Index
+        </button>
+
+        <div id="uploadStatus" class="status"></div>
+
+    </div>
+
+    <div class="card">
+
+        <h2>2. Ask Question</h2>
+
+        <input
+            type="text"
+            id="questionInput"
+            placeholder="Ask something from your document..."
+        >
+
+        <button id="askButton" onclick="askQuestion()">
+            Ask Question
+        </button>
+
+        <div id="answerBox" class="answer-box">
+            Upload a document first.
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+
+// Same server se page khul raha hai, isliye relative URL
+const API_URL = "";
+
+
+function showStatus(message, type = "") {
+    const status = document.getElementById("uploadStatus");
+    status.className = "status " + type;
+    status.innerText = message;
+}
+
+
+async function readJson(response) {
+    try {
+        return await response.json();
+    } catch (e) {
+        return {};
+    }
+}
+
+
+// ============================================================
+// UPLOAD DOCUMENT
+// ============================================================
+
+async function uploadDocument() {
+
+    const fileInput = document.getElementById("fileInput");
+    const uploadButton = document.getElementById("uploadButton");
+    const file = fileInput.files[0];
+
+    if (!file) {
+        showStatus("Please select a file first.", "error");
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    uploadButton.disabled = true;
+    uploadButton.innerText = "Processing...";
+    showStatus("Uploading and indexing document...", "loading");
+
+    try {
+
+        const response = await fetch(API_URL + "/upload", {
+            method: "POST",
+            body: formData
+        });
+
+        const data = await readJson(response);
+
+        if (!response.ok) {
+            throw new Error(data.error || "Upload failed.");
+        }
+
+        showStatus(data.message || "Document indexed successfully.", "success");
+
+        document.getElementById("answerBox").innerText =
+            "Document is ready. Ask your question.";
+
+    } catch (error) {
+
+        console.error("Upload error:", error);
+        showStatus("Error: " + error.message, "error");
+
+    } finally {
+
+        uploadButton.disabled = false;
+        uploadButton.innerText = "Upload & Index";
+    }
+}
+
+
+// ============================================================
+// ASK QUESTION
+// ============================================================
+
+async function askQuestion() {
+
+    const questionInput = document.getElementById("questionInput");
+    const answerBox = document.getElementById("answerBox");
+    const askButton = document.getElementById("askButton");
+
+    const question = questionInput.value.trim();
+
+    if (!question) {
+        answerBox.innerText = "Please enter a question.";
+        return;
+    }
+
+    askButton.disabled = true;
+    askButton.innerText = "Searching...";
+    answerBox.innerText = "Searching document and generating answer...";
+
+    try {
+
+        const response = await fetch(API_URL + "/ask", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ question: question })
+        });
+
+        const data = await readJson(response);
+
+        if (!response.ok) {
+            throw new Error(data.error || "Question request failed.");
+        }
+
+        answerBox.innerText = data.answer || "No answer received.";
+
+    } catch (error) {
+
+        console.error("Question error:", error);
+        answerBox.innerText = "Error: " + error.message;
+
+    } finally {
+
+        askButton.disabled = false;
+        askButton.innerText = "Ask Question";
+    }
+}
+
+
+// ============================================================
+// ENTER KEY SUPPORT
+// ============================================================
+
+document.getElementById("questionInput").addEventListener("keydown", function (event) {
+    if (event.key === "Enter") {
+        askQuestion();
+    }
+});
+
+</script>
+
+</body>
+
+</html>
