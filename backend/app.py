@@ -3,7 +3,7 @@ from pathlib import Path
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 
-from llm import QAAssistant
+from backend.llm import QAAssistant
 
 
 # ---------------------------------------------------------
