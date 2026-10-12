@@ -1,23 +1,19 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document Q&A Assistant</title>
+    <meta name="theme-color" content="#2563eb">
+    <title>Document Q&amp;A Assistant</title>
     <link rel="stylesheet" href="/style.css">
 </head>
-
 <body>
 
 <div class="container">
-
     <h1>Document Q&amp;A Assistant</h1>
 
     <div class="card">
-
         <h2>1. Upload Document</h2>
-
         <p class="help-text">
             Supported files: PDF, DOCX, TXT, JPG, JPEG, PNG
         </p>
@@ -28,16 +24,14 @@
             accept=".pdf,.docx,.txt,.jpg,.jpeg,.png"
         >
 
-        <button id="uploadButton" onclick="uploadDocument()">
+        <button id="uploadButton" type="button" onclick="uploadDocument()">
             Upload &amp; Index
         </button>
 
-        <div id="uploadStatus" class="status"></div>
-
+        <div id="uploadStatus" class="status" role="status" aria-live="polite"></div>
     </div>
 
     <div class="card">
-
         <h2>2. Ask Question</h2>
 
         <input
@@ -46,46 +40,64 @@
             placeholder="Ask something from your document..."
         >
 
-        <button id="askButton" onclick="askQuestion()">
+        <button id="askButton" type="button" onclick="askQuestion()">
             Ask Question
         </button>
 
-        <div id="answerBox" class="answer-box">
+        <div id="answerBox" class="answer-box" role="status" aria-live="polite">
             Upload a document first.
         </div>
-
     </div>
-
 </div>
 
 <script>
+"use strict";
 
-// Same server se page khul raha hai, isliye relative URL
+// Frontend aur backend same Render service par hain.
 const API_URL = "";
 
+const ALLOWED_EXTENSIONS = [
+    "pdf", "docx", "txt", "jpg", "jpeg", "png"
+];
 
 function showStatus(message, type = "") {
     const status = document.getElementById("uploadStatus");
     status.className = "status " + type;
-    status.innerText = message;
+    status.textContent = message;
 }
 
+async function sendRequest(url, options) {
+    let response;
 
-async function readJson(response) {
     try {
-        return await response.json();
-    } catch (e) {
-        return {};
+        response = await fetch(url, options);
+    } catch (error) {
+        throw new Error(
+            "Server se connection nahi ho raha. Internet check karein, page refresh karein aur Render logs dekhein."
+        );
     }
+
+    const text = await response.text();
+    let data = {};
+
+    try {
+        data = text ? JSON.parse(text) : {};
+    } catch {
+        data = {};
+    }
+
+    if (!response.ok) {
+        throw new Error(
+            data.error ||
+            data.message ||
+            `Server error: HTTP ${response.status}`
+        );
+    }
+
+    return data;
 }
-
-
-// ============================================================
-// UPLOAD DOCUMENT
-// ============================================================
 
 async function uploadDocument() {
-
     const fileInput = document.getElementById("fileInput");
     const uploadButton = document.getElementById("uploadButton");
     const file = fileInput.files[0];
@@ -95,106 +107,92 @@ async function uploadDocument() {
         return;
     }
 
+    const extension = file.name.split(".").pop().toLowerCase();
+
+    if (!ALLOWED_EXTENSIONS.includes(extension)) {
+        showStatus("Unsupported file type. Select PDF, DOCX, TXT, JPG, JPEG or PNG.", "error");
+        return;
+    }
+
+    if (file.size === 0) {
+        showStatus("The selected file is empty.", "error");
+        return;
+    }
+
     const formData = new FormData();
     formData.append("file", file);
 
     uploadButton.disabled = true;
-    uploadButton.innerText = "Processing...";
-    showStatus("Uploading and indexing document...", "loading");
+    uploadButton.textContent = "Processing...";
+    showStatus("Uploading file and processing its content...", "loading");
 
     try {
-
-        const response = await fetch(API_URL + "/upload", {
+        const data = await sendRequest(API_URL + "/upload", {
             method: "POST",
             body: formData
         });
 
-        const data = await readJson(response);
+        showStatus(
+            data.message || "Upload completed successfully.",
+            "success"
+        );
 
-        if (!response.ok) {
-            throw new Error(data.error || "Upload failed.");
-        }
-
-        showStatus(data.message || "Document indexed successfully.", "success");
-
-        document.getElementById("answerBox").innerText =
-            "Document is ready. Ask your question.";
+        document.getElementById("answerBox").textContent =
+            "Document processed. You can now ask a question.";
 
     } catch (error) {
-
         console.error("Upload error:", error);
-        showStatus("Error: " + error.message, "error");
-
+        showStatus("Upload failed: " + error.message, "error");
     } finally {
-
         uploadButton.disabled = false;
-        uploadButton.innerText = "Upload & Index";
+        uploadButton.textContent = "Upload & Index";
     }
 }
 
-
-// ============================================================
-// ASK QUESTION
-// ============================================================
-
 async function askQuestion() {
-
     const questionInput = document.getElementById("questionInput");
     const answerBox = document.getElementById("answerBox");
     const askButton = document.getElementById("askButton");
-
     const question = questionInput.value.trim();
 
     if (!question) {
-        answerBox.innerText = "Please enter a question.";
+        answerBox.textContent = "Please enter a question.";
         return;
     }
 
     askButton.disabled = true;
-    askButton.innerText = "Searching...";
-    answerBox.innerText = "Searching document and generating answer...";
+    askButton.textContent = "Searching...";
+    answerBox.textContent = "Searching your document...";
 
     try {
-
-        const response = await fetch(API_URL + "/ask", {
+        const data = await sendRequest(API_URL + "/ask", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ question: question })
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ question })
         });
 
-        const data = await readJson(response);
-
-        if (!response.ok) {
-            throw new Error(data.error || "Question request failed.");
-        }
-
-        answerBox.innerText = data.answer || "No answer received.";
+        answerBox.textContent = data.answer || "No answer received.";
 
     } catch (error) {
-
         console.error("Question error:", error);
-        answerBox.innerText = "Error: " + error.message;
-
+        answerBox.textContent = "Request failed: " + error.message;
     } finally {
-
         askButton.disabled = false;
-        askButton.innerText = "Ask Question";
+        askButton.textContent = "Ask Question";
     }
 }
 
-
-// ============================================================
-// ENTER KEY SUPPORT
-// ============================================================
-
-document.getElementById("questionInput").addEventListener("keydown", function (event) {
-    if (event.key === "Enter") {
-        askQuestion();
+document.getElementById("questionInput").addEventListener(
+    "keydown",
+    function(event) {
+        if (event.key === "Enter") {
+            askQuestion();
+        }
     }
-});
-
+);
 </script>
 
 </body>
-
 </html>
