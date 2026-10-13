@@ -1,16 +1,17 @@
- <!DOCTYPE html>
+
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#2563eb">
-    <title>Document Q&amp;A Assistant</title>
+    <title>Document Q&A Assistant</title>
     <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 
 <div class="container">
-    <h1>Document Q&amp;A Assistant</h1>
+    <h1>Document Q&A Assistant</h1>
 
     <div class="card">
         <h2>1. Upload Document</h2>
@@ -24,11 +25,12 @@
             accept=".pdf,.docx,.txt,.jpg,.jpeg,.png"
         >
 
-        <button id="uploadButton" type="button" onclick="uploadDocument()">
+        <button id="uploadButton" type="button">
             Upload &amp; Index
         </button>
 
-        <div id="uploadStatus" class="status" role="status" aria-live="polite"></div>
+        <div id="uploadStatus" class="status"
+             role="status" aria-live="polite"></div>
     </div>
 
     <div class="card">
@@ -40,11 +42,12 @@
             placeholder="Ask something from your document..."
         >
 
-        <button id="askButton" type="button" onclick="askQuestion()">
+        <button id="askButton" type="button">
             Ask Question
         </button>
 
-        <div id="answerBox" class="answer-box" role="status" aria-live="polite">
+        <div id="answerBox" class="answer-box"
+             role="status" aria-live="polite">
             Upload a document first.
         </div>
     </div>
@@ -53,8 +56,7 @@
 <script>
 "use strict";
 
-// Frontend aur backend same Render service par hain.
-const API_URL = "";
+const API_URL = window.location.origin;
 
 const ALLOWED_EXTENSIONS = [
     "pdf", "docx", "txt", "jpg", "jpeg", "png"
@@ -66,31 +68,40 @@ function showStatus(message, type = "") {
     status.textContent = message;
 }
 
-async function sendRequest(url, options) {
+async function sendRequest(endpoint, options) {
+    const url = API_URL + endpoint;
+
+    console.log("Sending request:", url);
+
     let response;
 
     try {
         response = await fetch(url, options);
     } catch (error) {
+        console.error("Network/fetch error:", error);
+
         throw new Error(
-            "Server se connection nahi ho raha. Internet check karein, page refresh karein aur Render logs dekhein."
+            "Request server tak nahi pahunchi. Internet check karein. " +
+            "Original error: " + (error.message || "Unknown network error")
         );
     }
 
-    const text = await response.text();
+    console.log("Server response:", response.status, endpoint);
+
+    const responseText = await response.text();
     let data = {};
 
     try {
-        data = text ? JSON.parse(text) : {};
-    } catch {
-        data = {};
+        data = responseText ? JSON.parse(responseText) : {};
+    } catch (error) {
+        console.error("Invalid server response:", responseText);
     }
 
     if (!response.ok) {
         throw new Error(
             data.error ||
             data.message ||
-            `Server error: HTTP ${response.status}`
+            "Server ne HTTP " + response.status + " error diya."
         );
     }
 
@@ -110,7 +121,7 @@ async function uploadDocument() {
     const extension = file.name.split(".").pop().toLowerCase();
 
     if (!ALLOWED_EXTENSIONS.includes(extension)) {
-        showStatus("Unsupported file type. Select PDF, DOCX, TXT, JPG, JPEG or PNG.", "error");
+        showStatus("Unsupported file type.", "error");
         return;
     }
 
@@ -123,17 +134,21 @@ async function uploadDocument() {
     formData.append("file", file);
 
     uploadButton.disabled = true;
-    uploadButton.textContent = "Processing...";
-    showStatus("Uploading file and processing its content...", "loading");
+    uploadButton.textContent = "Uploading...";
+    showStatus(
+        "Uploading " + file.name + " (" +
+        (file.size / 1024).toFixed(1) + " KB)...",
+        "loading"
+    );
 
     try {
-        const data = await sendRequest(API_URL + "/upload", {
+        const data = await sendRequest("/upload", {
             method: "POST",
             body: formData
         });
 
         showStatus(
-            data.message || "Upload completed successfully.",
+            data.message || "File processed successfully.",
             "success"
         );
 
@@ -141,7 +156,7 @@ async function uploadDocument() {
             "Document processed. You can now ask a question.";
 
     } catch (error) {
-        console.error("Upload error:", error);
+        console.error("Upload failed:", error);
         showStatus("Upload failed: " + error.message, "error");
     } finally {
         uploadButton.disabled = false;
@@ -165,24 +180,32 @@ async function askQuestion() {
     answerBox.textContent = "Searching your document...";
 
     try {
-        const data = await sendRequest(API_URL + "/ask", {
+        const data = await sendRequest("/ask", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({ question })
+            body: JSON.stringify({ question: question })
         });
 
         answerBox.textContent = data.answer || "No answer received.";
 
     } catch (error) {
-        console.error("Question error:", error);
+        console.error("Question failed:", error);
         answerBox.textContent = "Request failed: " + error.message;
     } finally {
         askButton.disabled = false;
         askButton.textContent = "Ask Question";
     }
 }
+
+document.getElementById("uploadButton").addEventListener(
+    "click", uploadDocument
+);
+
+document.getElementById("askButton").addEventListener(
+    "click", askQuestion
+);
 
 document.getElementById("questionInput").addEventListener(
     "keydown",
