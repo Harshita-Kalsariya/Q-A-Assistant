@@ -11,12 +11,15 @@
 <body>
 
 <div class="container">
-    <h1>Document Q&A Assistant</h1>
+    <h1>Document Q&amp;A Assistant</h1>
 
     <div class="card">
         <h2>1. Upload Document</h2>
+
         <p class="help-text">
             Supported files: PDF, DOCX, TXT, JPG, JPEG, PNG
+            <br>
+            Maximum file size: 10 MB
         </p>
 
         <input
@@ -29,8 +32,10 @@
             Upload &amp; Index
         </button>
 
-        <div id="uploadStatus" class="status"
-             role="status" aria-live="polite"></div>
+        <div id="uploadStatus"
+             class="status"
+             role="status"
+             aria-live="polite"></div>
     </div>
 
     <div class="card">
@@ -46,8 +51,10 @@
             Ask Question
         </button>
 
-        <div id="answerBox" class="answer-box"
-             role="status" aria-live="polite">
+        <div id="answerBox"
+             class="answer-box"
+             role="status"
+             aria-live="polite">
             Upload a document first.
         </div>
     </div>
@@ -56,11 +63,14 @@
 <script>
 "use strict";
 
-const API_URL = window.location.origin;
+// Relative URLs ensure requests use the same origin as this page.
+const API_URL = "";
 
 const ALLOWED_EXTENSIONS = [
     "pdf", "docx", "txt", "jpg", "jpeg", "png"
 ];
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 function showStatus(message, type = "") {
     const status = document.getElementById("uploadStatus");
@@ -69,24 +79,27 @@ function showStatus(message, type = "") {
 }
 
 async function sendRequest(endpoint, options) {
+    // Example: /upload or /ask
     const url = API_URL + endpoint;
 
-    console.log("Sending request:", url);
+    console.log("Request URL:", window.location.origin + url);
+    console.log("Request method:", options.method || "GET");
 
     let response;
 
     try {
         response = await fetch(url, options);
     } catch (error) {
-        console.error("Network/fetch error:", error);
+        console.error("Fetch failed:", error);
 
         throw new Error(
-            "Request server tak nahi pahunchi. Internet check karein. " +
-            "Original error: " + (error.message || "Unknown network error")
+            "Browser server se connect nahi kar paaya. " +
+            "Internet connection check karo. Browser error: " +
+            (error.message || "Network error")
         );
     }
 
-    console.log("Server response:", response.status, endpoint);
+    console.log("HTTP status:", response.status);
 
     const responseText = await response.text();
     let data = {};
@@ -94,19 +107,23 @@ async function sendRequest(endpoint, options) {
     try {
         data = responseText ? JSON.parse(responseText) : {};
     } catch (error) {
-        console.error("Invalid server response:", responseText);
+        console.error("Server response was not JSON.");
     }
 
     if (!response.ok) {
         throw new Error(
             data.error ||
             data.message ||
-            "Server ne HTTP " + response.status + " error diya."
+            "Server error: HTTP " + response.status
         );
     }
 
     return data;
 }
+
+// ======================================================
+// UPLOAD DOCUMENT
+// ======================================================
 
 async function uploadDocument() {
     const fileInput = document.getElementById("fileInput");
@@ -121,7 +138,10 @@ async function uploadDocument() {
     const extension = file.name.split(".").pop().toLowerCase();
 
     if (!ALLOWED_EXTENSIONS.includes(extension)) {
-        showStatus("Unsupported file type.", "error");
+        showStatus(
+            "Unsupported file. Select PDF, DOCX, TXT, JPG or PNG.",
+            "error"
+        );
         return;
     }
 
@@ -130,14 +150,22 @@ async function uploadDocument() {
         return;
     }
 
+    if (file.size > MAX_FILE_SIZE) {
+        showStatus(
+            "File is larger than 10 MB. Select a smaller file.",
+            "error"
+        );
+        return;
+    }
+
     const formData = new FormData();
     formData.append("file", file);
 
     uploadButton.disabled = true;
     uploadButton.textContent = "Uploading...";
+
     showStatus(
-        "Uploading " + file.name + " (" +
-        (file.size / 1024).toFixed(1) + " KB)...",
+        "Uploading file (" + (file.size / 1024).toFixed(1) + " KB)...",
         "loading"
     );
 
@@ -147,8 +175,12 @@ async function uploadDocument() {
             body: formData
         });
 
+        if (data.success !== true) {
+            throw new Error(data.error || "Upload was not successful.");
+        }
+
         showStatus(
-            data.message || "File processed successfully.",
+            data.message || "Document processed successfully.",
             "success"
         );
 
@@ -156,18 +188,27 @@ async function uploadDocument() {
             "Document processed. You can now ask a question.";
 
     } catch (error) {
-        console.error("Upload failed:", error);
-        showStatus("Upload failed: " + error.message, "error");
+        console.error("Upload error:", error);
+
+        showStatus(
+            "Upload failed: " + error.message,
+            "error"
+        );
     } finally {
         uploadButton.disabled = false;
         uploadButton.textContent = "Upload & Index";
     }
 }
 
+// ======================================================
+// ASK QUESTION
+// ======================================================
+
 async function askQuestion() {
     const questionInput = document.getElementById("questionInput");
     const answerBox = document.getElementById("answerBox");
     const askButton = document.getElementById("askButton");
+
     const question = questionInput.value.trim();
 
     if (!question) {
@@ -185,26 +226,41 @@ async function askQuestion() {
             headers: {
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({ question: question })
+            body: JSON.stringify({
+                question: question
+            })
         });
+
+        if (data.success !== true) {
+            throw new Error(data.error || "Could not answer the question.");
+        }
 
         answerBox.textContent = data.answer || "No answer received.";
 
     } catch (error) {
-        console.error("Question failed:", error);
-        answerBox.textContent = "Request failed: " + error.message;
+        console.error("Question error:", error);
+
+        answerBox.textContent =
+            "Request failed: " + error.message;
+
     } finally {
         askButton.disabled = false;
         askButton.textContent = "Ask Question";
     }
 }
 
+// ======================================================
+// BUTTON EVENTS
+// ======================================================
+
 document.getElementById("uploadButton").addEventListener(
-    "click", uploadDocument
+    "click",
+    uploadDocument
 );
 
 document.getElementById("askButton").addEventListener(
-    "click", askQuestion
+    "click",
+    askQuestion
 );
 
 document.getElementById("questionInput").addEventListener(
