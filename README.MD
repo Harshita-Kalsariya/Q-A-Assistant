@@ -1,5 +1,7 @@
 # 🤖 AI-Powered Q&A Assistant
 
+Deployment on Render :->  https://qanda-assistant.onrender.com
+
 An **AI/ML-based Document Q&A Assistant** that allows users to upload documents and ask questions based on their uploaded files.
 
 The application uses **NLP, embeddings, vector search, and RAG (Retrieval-Augmented Generation)** to retrieve relevant information from documents and generate meaningful answers.
